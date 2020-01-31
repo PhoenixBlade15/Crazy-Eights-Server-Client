@@ -1,1 +1,1 @@
-Crazy-Eights-Server-Client
+Crazy Eights Server-Client

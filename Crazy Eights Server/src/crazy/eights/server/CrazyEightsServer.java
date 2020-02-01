@@ -28,18 +28,14 @@ import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
-import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.Collections;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 public class CrazyEightsServer {
     
     // Variable Initialization
     private static final int PORT = 9090;
-    
     private static ArrayList<ClientHandler> clients = new ArrayList<>();
     private static ExecutorService pool = Executors.newFixedThreadPool(2);
     static int playerNumber = 0;
@@ -60,6 +56,7 @@ public class CrazyEightsServer {
         while (true){
             if ( playerNumber < 2 ){
                 
+                // Creates a hand to allow the client to start the game with 5, or designated amount, cards
                 tempHand.clear();
                 int amountOfStartingCards = 5;
                 for (int i = 0; i < amountOfStartingCards; i++) {
@@ -69,6 +66,7 @@ public class CrazyEightsServer {
                     System.out.println(tempHand.get(i));
                 }
                 
+                // Allows feedback on server side that client has connected, and starts their thread and waits for a second person to enter
                 System.out.println("[SERVER] Waiting for client connection.");
                 Socket client = listener.accept();
                 System.out.println("[SERVER] Connected to client!");
@@ -84,12 +82,14 @@ public class CrazyEightsServer {
     
     // Creates the cards in a deck
     public static ArrayList<String> createDeck(ArrayList<String> tempDeck){
+        
+        // Clears the deck to make sure nothing is in it then sets up the suits and amount of cards per suit
         tempDeck.clear();
         String currentCard;
         String[] suits = {"C", "H", "S", "D"};
         int cardsInSuit = 13;
         
-        
+        // Will go through all suits and all numbers assigning aces, jacks, queens, and kings as needed otherwise face value
         for (int i = 0; i < suits.length; i++) {
             for (int j = 1; j <= cardsInSuit; j++) {
                 currentCard = "";
@@ -111,10 +111,12 @@ public class CrazyEightsServer {
             }
         }
         
+        // Shuffles the deck then returns it
         tempDeck = randomizeDeck(tempDeck);
         return tempDeck;
     }
     
+    // Shuffles the deck 10 times to make sure is randomized properly
     public static ArrayList<String> randomizeDeck( ArrayList<String> tempDeck ){
         for (int i = 0; i < 10; i++) {
             Collections.shuffle(tempDeck);
@@ -132,7 +134,7 @@ class ClientHandler implements Runnable{
     private BufferedReader in;
     private PrintWriter out;
     private int playerNum;
-    private ArrayList<String> playerHand; 
+    private static ArrayList<String> playerHand; 
     private ArrayList<ClientHandler> clients;
     
     // Constructor
@@ -150,6 +152,7 @@ class ClientHandler implements Runnable{
         // So when the server closes it will break into the close everything properly
         try {
             
+            // Tells the clients two players are now in the game
             if ( CrazyEightsServer.playerNumber == 2 ){
                 outToAll("Both players connected.");
             }
@@ -162,8 +165,7 @@ class ClientHandler implements Runnable{
                 
                 // Makes the decision of what the client wants to do and tells them the response
                 if ( CrazyEightsServer.playerNumber == 2 ){
-                    String response = HandleRequest(request);
-                    out.println(response);
+                    HandleRequest(request);
                 } else {
                     out.println("Second Player not connected yet.");
                 }
@@ -186,51 +188,101 @@ class ClientHandler implements Runnable{
         }
     }
     
-    private String HandleRequest( String request ){
+    // Will handle any requests the clients put in
+    private void HandleRequest( String request ){
+        
+        // If the client wants to quit, will inform all other players
         if ( request.contains("quit") ){
             outToAll("Player " + (playerNum+1) + " has left.");
             
+        // If they want to play a card
         } else if ( request.startsWith("play") ){
+            
+            // Make sure there is at least a space after the play
             if ( request.indexOf(" ") != -1 ){
+                
+                // Seperates the card from the request and removes any trailing or leading spaces
                 String card = request.substring( request.indexOf(" ") ).trim();
-                boolean played = playCard(card);
+                
+                // Attempts to play the card returns true or false
+                boolean played = playCard(card, this.playerHand);
                 if ( played ) {
-                    outToAll("Player " + (playerNum+1) + " played " + card);
-                    if ( CrazyEightsServer.playerTurn == 0 ){
-                        CrazyEightsServer.playerTurn = 1;
+                    
+                    // Checks if they have any cards remaining and if not inform all players
+                    if ( this.playerHand.size() < 1 ){
+                        outToAll("Player " + (playerNum+1) + " is out of cards!");
+                        
                     } else {
-                        CrazyEightsServer.playerTurn = 0;
+                        
+                        // tells all players who played what card and changes the player turn
+                        outToAll("Player " + (playerNum+1) + " played " + card);
+                        if ( CrazyEightsServer.playerTurn == 0 ){
+                            CrazyEightsServer.playerTurn = 1;
+                        } else {
+                            CrazyEightsServer.playerTurn = 0;
+                        }    
                     }
+                    
                 } else {
                     out.println("Can not play that card.");
                 }
             }
             
+        // If the client wants to draw a card
         } else if ( request.startsWith("draw") ){
+            
+            // Makes sure drawing a card is possible
             if ( CrazyEightsServer.deck.size() < 1 ) {
                 out.println("Can not draw from empty deck.");
                 
                 if ( CrazyEightsServer.playedDeck.size() < 1 ){
-                    
+                    out.println("No extra cards to draw.");
                 } else {
                     remakeDeckFromPlayed( CrazyEightsServer.playedDeck );
                 }
+                
+            // Adds a card from the deck to players hand
             } else {
+                out.println( "You drew a " + CrazyEightsServer.deck.get(0) );
                 playerHand.add( CrazyEightsServer.deck.remove(0));
             }
             
+        // In case the client wants to see what cards are in their hand
         } else if ( request.startsWith("hand") ){
+            String hand = createHandString( this.playerHand );
+            out.println(hand);
             
+        // If the client enters anything not properly
         } else {
             out.println("Not a command.");
         }
-        return "";
     }
     
-    private boolean playCard( String card ){
+    // Creates a string to show the user what cards are in their hand
+    private String createHandString( ArrayList<String> playerHand ){
+        String tempHand = "";
+        for (int i = 0; i < playerHand.size(); i++) {
+            tempHand += playerHand.get(i) + ", ";
+        }
+        tempHand = tempHand.substring(0,tempHand.length()-2);
+        return tempHand;
+    }
+    
+    // Plays checks if the card can be played and play it if so
+    private boolean playCard( String card, ArrayList<String> playerHand ){
+        
+        // Is the card in their hand
+        if ( !playerHand.contains(card) ){
+            return false;
+        }
+        
+        // Remove the card from their hand and add to the played pile
+        playerHand.remove( playerHand.indexOf(card) );
+        CrazyEightsServer.playedDeck.add(0, card);
         return true;    
     }
     
+    // Remakes the deck from all played cards incase the deck runs out and someone needs to draw
     private void remakeDeckFromPlayed( ArrayList<String> playedCards ){
         if ( playedCards.size() > 1 ){
             for (int i = 1; i < playedCards.size(); i++) {
@@ -239,6 +291,7 @@ class ClientHandler implements Runnable{
         }
     }
     
+    // Send a message to all clients in sockets
     private void outToAll( String msg ) {
         for ( ClientHandler aClient : clients ){
             aClient.out.println(msg);

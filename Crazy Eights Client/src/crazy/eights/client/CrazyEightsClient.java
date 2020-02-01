@@ -44,18 +44,17 @@ public class CrazyEightsClient {
         PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
         String serverResponse;
         
+        // Prints a menu for the client to follow
         System.out.println("Command Menu (Capitalization Sensitive): \n"
                        + "'quit' to exit \n"
                        + "'play K S' to play King of Spades or 'play 3 H' for 3 of hearts \n"
-                       + "'draw' will draw a card from the deck"
-                       + "'hand' to show what cards are in your hand"
+                       + "'draw' will draw a card from the deck \n"
+                       + "'hand' to show what cards are in your hand \n"
                        + "Cards are their number or A, Q, J, K followed by a space and then suit ");
         System.out.println();
         
         // Keeps the client going as long as they don't type quit
         while (true){
-            
-            
             
             // Gets the message from server
             serverResponse = input.readLine();
